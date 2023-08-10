@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import PostService from "../API/PostService";
 import PostFilter from "../components/PostFilter";
 import PostForm from "../components/PostForm";
@@ -10,6 +10,8 @@ import Pagination from "../components/UI/pagination/Pagination";
 import { useFetching } from "../hooks/useFetching";
 import { usePosts } from "../hooks/usePosts";
 import { getPageCount } from "../utils/pages";
+import { useObserver } from "../hooks/useObserver";
+import MySelect from "../components/UI/select/MySelect";
 
 function Posts() {
   const [posts, setPosts] = useState([])
@@ -24,20 +26,28 @@ function Posts() {
 
   const sortedAndSearchedPosts = usePosts(posts, filter.sort, filter.query)
 
+  // получение ссылки на дом элемент который последний в списке
+  const lastElement = useRef()
+
+
 
   // переделали на response обратно для пагинации
   const [fetchPosts, isPostsLoading, postError] = useFetching( async() => {
     const response = await PostService.getAll(limit, page);
-      setPosts(response.data)
+      setPosts([...posts, ...response.data])
       const totalCount = response.headers['x-total-count'];
       setTotalPages(getPageCount(totalCount, limit))
   })
 
+  useObserver(lastElement, page < totalPages, isPostsLoading, () => {
+    setPage ( page + 1 )
+  })
 
   // массив зависимостей пустой чтобы функция отработала ЕДИНОЖДЫ
+  // добавлена страница в массив зависимостей чтобы на каждое изменение стр подгружались посты
   useEffect(() => {
     fetchPosts(limit, page)
-  }, []) 
+  }, [page]) 
 
   // создаем функцию которая на вход будет ожидать новый пост
   const createPost = (newPost) => {
@@ -52,7 +62,7 @@ function Posts() {
 
   const changePage = (page) => {
     setPage(page)
-    fetchPosts(limit, page)
+    
   }
 
   return (
@@ -78,17 +88,36 @@ function Posts() {
         setFilter={setFilter}
       />
 
+      {/* <MySelect
+        value={limit}
+        onChange={value => setLimit(value)}
+        defaultValue='Numbet of elements'
+        options={[
+          {value: 5, name: '5'},
+          {value: 10, name: '10'},
+          {value: 25, name: '25'},
+          {value: -1, name: 'Show All'}
+        ]}
+      /> */}
+
     {postError &&
       <h1>Something went wrong ${postError}</h1>
     }
-    {isPostsLoading
-      ? <div style={{display: 'flex', justifyContent: 'center', marginTop: 50}}><Loader/></div>
-      : <PostList
+    <PostList
         remove={removePost}
         posts={sortedAndSearchedPosts}
         title='Список постов 1'
-      />
+    />
+    <div
+      ref={lastElement}
+      style={{height: 20, background: 'red'}}>
+      
+    </div>
+    {isPostsLoading &&
+      <div style={{display: 'flex', justifyContent: 'center', marginTop: 50}}><Loader/></div>
     }
+      
+    
     
       <Pagination
         page={page}
